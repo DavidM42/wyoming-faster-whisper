@@ -28,6 +28,17 @@ The `--model` can also be a HuggingFace model like `Systran/faster-distil-whispe
 
 **NOTE**: Models are downloaded to the first `--data-dir` directory.
 
+### Intel Arc (and other Intel GPUs)
+
+For Intel Arc A-series GPUs use the **transformers** backend with `--device xpu` (or `--device auto` to auto-detect). Install the optional dependency and run:
+
+```sh
+pip install -e ".[transformers,intel_xpu]"
+script/run --stt-library transformers --device xpu --model openai/whisper-base --language en --uri 'tcp://0.0.0.0:10300' --data-dir /data --download-dir /data
+```
+
+The default faster-whisper backend uses CTranslate2, which does not support Intel GPUs; with `--device xpu` it falls back to CPU and logs a warning.
+
 ## Docker Image
 
 ``` sh

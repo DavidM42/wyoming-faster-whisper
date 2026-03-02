@@ -8,6 +8,7 @@ import torch
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
 
 from .const import Transcriber
+from .device import get_torch_device
 
 _RATE = 16000
 
@@ -20,14 +21,17 @@ class TransformersTranscriber(Transcriber):
         model_id: str,
         cache_dir: Optional[Union[str, Path]] = None,
         local_files_only: bool = False,
+        device: str = "cpu",
     ) -> None:
         """Initialize Whisper model."""
+        self._device = get_torch_device(device)
         self.processor = AutoProcessor.from_pretrained(
             model_id, cache_dir=cache_dir, local_files_only=local_files_only
         )
         self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
             model_id, cache_dir=cache_dir, local_files_only=local_files_only
         )
+        self.model = self.model.to(self._device)
         self.model.eval()
 
     def transcribe(
@@ -53,6 +57,8 @@ class TransformersTranscriber(Transcriber):
         )
 
         inputs = self.processor(audio_tensor, sampling_rate=_RATE, return_tensors="pt")
+        # Move inputs to model device (required for XPU/CUDA)
+        inputs = {k: v.to(self._device) for k, v in inputs.items()}
         generate_args = {**inputs, "num_beams": beam_size}
 
         if initial_prompt:
@@ -61,7 +67,7 @@ class TransformersTranscriber(Transcriber):
                     initial_prompt, return_tensors="pt", add_special_tokens=False
                 )
                 .input_ids[0]
-                .to(self.model.device)
+                .to(self._device)
             )
             generate_args["prompt_ids"] = prompt_ids
 

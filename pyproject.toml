@@ -81,3 +81,6 @@ onnx_asr = [
 zeroconf = [
     "wyoming[zeroconf]",
 ]
+intel_xpu = [
+    "intel-extension-for-pytorch",
+]
