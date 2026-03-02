@@ -70,7 +70,8 @@ dev = [
     "pytest-asyncio",
 ]
 transformers = [
-    "transformers[torch]==4.52.4",
+    # 4.52.x pins torch<2.7; Python 3.14 only has torch 2.9+. 4.54+ works with newer torch.
+    "transformers[torch]>=4.54.0",
 ]
 sherpa = [
     "sherpa-onnx==1.12.15",
@@ -82,5 +83,6 @@ zeroconf = [
     "wyoming[zeroconf]",
 ]
 intel_xpu = [
-    "intel-extension-for-pytorch",
+    # Intel Arc/XPU: wheels only available on Linux (no Windows on PyPI)
+    "intel-extension-for-pytorch; sys_platform == 'linux'",
 ]
