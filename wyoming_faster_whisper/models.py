@@ -67,14 +67,16 @@ class ModelLoader:
             has_sherpa = False
             _LOGGER.debug("Sherpa is NOT available")
 
+        transformers_import_error: Optional[str] = None
         try:
             from .transformers_whisper import TransformersTranscriber
 
             has_transformers = True
             _LOGGER.debug("Transformers library is available")
-        except ImportError:
+        except ImportError as e:
             has_transformers = False
-            _LOGGER.debug("Transformers library is NOT available")
+            transformers_import_error = str(e)
+            _LOGGER.debug("Transformers library is NOT available: %s", e)
 
         try:
             from .onnx_asr_handler import OnnxAsrTranscriber
@@ -105,6 +107,12 @@ class ModelLoader:
             or ((stt_library == SttLibrary.ONNX_ASR) and (not has_onnx_asr))
         ):
             # Fall back to faster-whisper
+            if stt_library == SttLibrary.TRANSFORMERS:
+                _LOGGER.warning(
+                    "Transformers backend requested but not available; "
+                    "falling back to faster-whisper. Reason: %s",
+                    transformers_import_error or "unknown",
+                )
             stt_library = SttLibrary.FASTER_WHISPER
             _LOGGER.debug("Falling back to faster-whisper (missing dependencies)")
 
