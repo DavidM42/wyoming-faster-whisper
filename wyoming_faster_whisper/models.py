@@ -122,6 +122,8 @@ class ModelLoader:
             machine = platform.machine().lower()
             is_arm = ("arm" in machine) or ("aarch" in machine)
             model = guess_model(stt_library, language, is_arm)
+        elif stt_library == SttLibrary.TRANSFORMERS:
+            model = normalize_transformers_model_id(model)
 
         _LOGGER.debug(
             "Selected stt-library '%s' with model '%s'", stt_library.value, model
@@ -191,6 +193,35 @@ class ModelLoader:
         _LOGGER.debug("Transcribed audio: %s", text)
 
         return text
+
+
+def normalize_transformers_model_id(model: str) -> str:
+    """Map shorthand Whisper names to HuggingFace openai/whisper-* repo ids."""
+    m = model.lower().strip()
+    if m in ("large-v3", "large_v3"):
+        return "openai/whisper-large-v3"
+    if m in ("large-v2", "large_v2"):
+        return "openai/whisper-large-v2"
+    if m == "large":
+        return "openai/whisper-large-v3"
+    if m == "medium":
+        return "openai/whisper-medium"
+    if m == "small":
+        return "openai/whisper-small"
+    if m == "base":
+        return "openai/whisper-base"
+    if m == "tiny":
+        return "openai/whisper-tiny"
+    if m in ("base.en", "base_en"):
+        return "openai/whisper-base.en"
+    if m in ("small.en", "small_en"):
+        return "openai/whisper-small.en"
+    if m in ("medium.en", "medium_en"):
+        return "openai/whisper-medium.en"
+    if m in ("tiny.en", "tiny_en"):
+        return "openai/whisper-tiny.en"
+    # Already a full repo id (e.g. openai/whisper-large-v3) or unknown
+    return model
 
 
 def guess_model(stt_library: SttLibrary, language: Optional[str], is_arm: bool) -> str:
