@@ -39,15 +39,16 @@ script/run --stt-library transformers --device xpu --model openai/whisper-base -
 
 The default faster-whisper backend uses CTranslate2, which does not support Intel GPUs; with `--device xpu` it falls back to CPU and logs a warning.
 
-**Windows with Intel Arc (transformers + XPU):** PyPI has no Windows wheels for `intel-extension-for-pytorch`. Intel provides prebuilt Windows binaries (beta/prototype) on their own index. Use their index first, then install this project with the transformers extra only (so the already-installed torch is used):
+**Windows with Intel Arc (transformers + XPU):** PyPI has no Windows wheels for `intel-extension-for-pytorch`. Intel provides prebuilt Windows binaries (beta/prototype) on their own index. You must use **torch 2.8.x from Intel’s index** (Intel Extension requires it); if you already have torch from PyPI (e.g. 2.10), uninstall it first:
 
 ```powershell
-# Use a Python version Intel supports (e.g. 3.10, 3.11, 3.12 – check Intel’s index).
+# Use a Python version Intel supports (e.g. 3.10, 3.11, 3.12 – not 3.14).
 python -m venv .venv
 .venv\Scripts\activate
+pip uninstall torch intel-extension-for-pytorch -y
 pip install torch intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/
 pip install -e ".[transformers]"
-script/run --stt-library transformers --device xpu --model openai/whisper-base --language en --uri 'tcp://0.0.0.0:10300' --data-dir . --download-dir .
+script/run --stt-library transformers --device xpu --model openai/whisper-base --language en --uri tcp://0.0.0.0:10300 --data-dir . --download-dir .
 ```
 
 If the Intel index does not have a wheel for your Python version (e.g. 3.14), use one of the alternatives below or WSL2. **Python 3.14:** the transformers extra requires `transformers>=4.54.0` so that the installed `torch` (2.9+ on 3.14) is accepted; `intel-extension-for-pytorch` has no Windows wheel for 3.14 on Intel’s index, so XPU on Windows with 3.14 is not supported.
