@@ -1,5 +1,6 @@
 """Code for Whisper transcription using HuggingFace's transformers library."""
 
+import logging
 import wave
 from pathlib import Path
 from typing import Optional, Union
@@ -10,6 +11,7 @@ from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
 from .const import Transcriber
 from .device import get_torch_device
 
+_LOGGER = logging.getLogger(__name__)
 _RATE = 16000
 
 
@@ -25,6 +27,11 @@ class TransformersTranscriber(Transcriber):
     ) -> None:
         """Initialize Whisper model."""
         self._device = get_torch_device(device)
+        if device == "xpu" and str(self._device) == "cpu":
+            _LOGGER.warning(
+                "Intel XPU requested but not available (install intel-extension-for-pytorch; "
+                "on Windows use Python 3.11/3.12 and Intel's index). Using CPU."
+            )
         self.processor = AutoProcessor.from_pretrained(
             model_id, cache_dir=cache_dir, local_files_only=local_files_only
         )

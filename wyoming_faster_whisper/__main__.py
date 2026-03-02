@@ -123,6 +123,10 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
+    # Strip accidental surrounding quotes (e.g. Windows: --uri 'tcp://...')
+    if args.uri and args.uri[0] in ("'", '"') and args.uri[-1] == args.uri[0]:
+        args.uri = args.uri[1:-1]
+
     if not args.download_dir:
         # Download to first data dir by default
         args.download_dir = args.data_dir[0]
