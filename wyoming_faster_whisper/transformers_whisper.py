@@ -59,13 +59,19 @@ class TransformersTranscriber(Transcriber):
             assert wav_file.getnchannels() == 1, "Audio must be mono"
             audio_bytes = wav_file.readframes(wav_file.getnframes())
 
+        # Copy buffer so the tensor is writable (avoids PyTorch UserWarning)
         audio_tensor = (
-            torch.frombuffer(audio_bytes, dtype=torch.int16).float() / 32768.0
+            torch.frombuffer(bytearray(audio_bytes), dtype=torch.int16).float()
+            / 32768.0
         )
 
         inputs = self.processor(audio_tensor, sampling_rate=_RATE, return_tensors="pt")
-        # Move inputs to model device (required for XPU/CUDA)
-        inputs = {k: v.to(self._device) for k, v in inputs.items()}
+        # Move inputs to model device and match model dtype (avoids float vs half mismatch)
+        model_dtype = next(self.model.parameters()).dtype
+        inputs = {
+            k: v.to(device=self._device, dtype=model_dtype if v.is_floating_point() else v.dtype)
+            for k, v in inputs.items()
+        }
         generate_args = {**inputs, "num_beams": beam_size}
 
         if initial_prompt:
