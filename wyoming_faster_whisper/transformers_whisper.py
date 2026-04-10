@@ -1,5 +1,6 @@
 """Code for Whisper transcription using HuggingFace's transformers library."""
 
+import logging
 import wave
 from pathlib import Path
 from typing import Optional, Union
@@ -8,7 +9,9 @@ import torch
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
 
 from .const import Transcriber
+from .device import get_torch_device
 
+_LOGGER = logging.getLogger(__name__)
 _RATE = 16000
 
 
@@ -20,14 +23,22 @@ class TransformersTranscriber(Transcriber):
         model_id: str,
         cache_dir: Optional[Union[str, Path]] = None,
         local_files_only: bool = False,
+        device: str = "cpu",
     ) -> None:
         """Initialize Whisper model."""
+        self._device = get_torch_device(device)
+        if device == "xpu" and str(self._device) == "cpu":
+            _LOGGER.warning(
+                "Intel XPU requested but not available (install intel-extension-for-pytorch; "
+                "on Windows use Python 3.11/3.12 and Intel's index). Using CPU."
+            )
         self.processor = AutoProcessor.from_pretrained(
             model_id, cache_dir=cache_dir, local_files_only=local_files_only
         )
         self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
             model_id, cache_dir=cache_dir, local_files_only=local_files_only
         )
+        self.model = self.model.to(self._device)
         self.model.eval()
 
     def transcribe(
@@ -48,11 +59,19 @@ class TransformersTranscriber(Transcriber):
             assert wav_file.getnchannels() == 1, "Audio must be mono"
             audio_bytes = wav_file.readframes(wav_file.getnframes())
 
+        # Copy buffer so the tensor is writable (avoids PyTorch UserWarning)
         audio_tensor = (
-            torch.frombuffer(audio_bytes, dtype=torch.int16).float() / 32768.0
+            torch.frombuffer(bytearray(audio_bytes), dtype=torch.int16).float()
+            / 32768.0
         )
 
         inputs = self.processor(audio_tensor, sampling_rate=_RATE, return_tensors="pt")
+        # Move inputs to model device and match model dtype (avoids float vs half mismatch)
+        model_dtype = next(self.model.parameters()).dtype
+        inputs = {
+            k: v.to(device=self._device, dtype=model_dtype if v.is_floating_point() else v.dtype)
+            for k, v in inputs.items()
+        }
         generate_args = {**inputs, "num_beams": beam_size}
 
         if initial_prompt:
@@ -61,7 +80,7 @@ class TransformersTranscriber(Transcriber):
                     initial_prompt, return_tensors="pt", add_special_tokens=False
                 )
                 .input_ids[0]
-                .to(self.model.device)
+                .to(self._device)
             )
             generate_args["prompt_ids"] = prompt_ids
 

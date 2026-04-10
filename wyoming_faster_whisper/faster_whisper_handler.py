@@ -1,11 +1,14 @@
 """Event handler for clients of the server."""
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import faster_whisper
 
 from .const import Transcriber
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class FasterWhisperTranscriber(Transcriber):
@@ -22,6 +25,14 @@ class FasterWhisperTranscriber(Transcriber):
     ) -> None:
         self.vad_filter = vad_parameters is not None
         self.vad_parameters = vad_parameters
+
+        # CTranslate2 (faster-whisper) does not support Intel XPU; use CPU and warn
+        if device == "xpu":
+            _LOGGER.warning(
+                "Intel XPU (Arc) is not supported by faster-whisper; using CPU. "
+                "Use --stt-library transformers for Intel GPU acceleration."
+            )
+            device = "cpu"
 
         self.model = faster_whisper.WhisperModel(
             model_id,

@@ -67,14 +67,16 @@ class ModelLoader:
             has_sherpa = False
             _LOGGER.debug("Sherpa is NOT available")
 
+        transformers_import_error: Optional[str] = None
         try:
             from .transformers_whisper import TransformersTranscriber
 
             has_transformers = True
             _LOGGER.debug("Transformers library is available")
-        except ImportError:
+        except ImportError as e:
             has_transformers = False
-            _LOGGER.debug("Transformers library is NOT available")
+            transformers_import_error = str(e)
+            _LOGGER.debug("Transformers library is NOT available: %s", e)
 
         try:
             from .onnx_asr_handler import OnnxAsrTranscriber
@@ -105,6 +107,12 @@ class ModelLoader:
             or ((stt_library == SttLibrary.ONNX_ASR) and (not has_onnx_asr))
         ):
             # Fall back to faster-whisper
+            if stt_library == SttLibrary.TRANSFORMERS:
+                _LOGGER.warning(
+                    "Transformers backend requested but not available; "
+                    "falling back to faster-whisper. Reason: %s",
+                    transformers_import_error or "unknown",
+                )
             stt_library = SttLibrary.FASTER_WHISPER
             _LOGGER.debug("Falling back to faster-whisper (missing dependencies)")
 
@@ -114,6 +122,8 @@ class ModelLoader:
             machine = platform.machine().lower()
             is_arm = ("arm" in machine) or ("aarch" in machine)
             model = guess_model(stt_library, language, is_arm)
+        elif stt_library == SttLibrary.TRANSFORMERS:
+            model = normalize_transformers_model_id(model)
 
         _LOGGER.debug(
             "Selected stt-library '%s' with model '%s'", stt_library.value, model
@@ -149,6 +159,7 @@ class ModelLoader:
                     model,
                     cache_dir=self.download_dir,
                     local_files_only=self.local_files_only,
+                    device=self.device,
                 )
             else:
                 transcriber = FasterWhisperTranscriber(
@@ -182,6 +193,35 @@ class ModelLoader:
         _LOGGER.debug("Transcribed audio: %s", text)
 
         return text
+
+
+def normalize_transformers_model_id(model: str) -> str:
+    """Map shorthand Whisper names to HuggingFace openai/whisper-* repo ids."""
+    m = model.lower().strip()
+    if m in ("large-v3", "large_v3"):
+        return "openai/whisper-large-v3"
+    if m in ("large-v2", "large_v2"):
+        return "openai/whisper-large-v2"
+    if m == "large":
+        return "openai/whisper-large-v3"
+    if m == "medium":
+        return "openai/whisper-medium"
+    if m == "small":
+        return "openai/whisper-small"
+    if m == "base":
+        return "openai/whisper-base"
+    if m == "tiny":
+        return "openai/whisper-tiny"
+    if m in ("base.en", "base_en"):
+        return "openai/whisper-base.en"
+    if m in ("small.en", "small_en"):
+        return "openai/whisper-small.en"
+    if m in ("medium.en", "medium_en"):
+        return "openai/whisper-medium.en"
+    if m in ("tiny.en", "tiny_en"):
+        return "openai/whisper-tiny.en"
+    # Already a full repo id (e.g. openai/whisper-large-v3) or unknown
+    return model
 
 
 def guess_model(stt_library: SttLibrary, language: Optional[str], is_arm: bool) -> str:

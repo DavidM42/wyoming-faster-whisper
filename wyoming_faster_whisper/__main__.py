@@ -13,6 +13,7 @@ from wyoming.server import AsyncServer, AsyncTcpServer
 
 from . import __version__
 from .const import AUTO_LANGUAGE, AUTO_MODEL, PARAKEET_LANGUAGES, SttLibrary
+from .device import get_best_device
 from .dispatch_handler import DispatchEventHandler
 from .models import ModelLoader
 
@@ -47,7 +48,7 @@ async def main() -> None:
     parser.add_argument(
         "--device",
         default="cpu",
-        help="Device to use for inference (default: cpu)",
+        help="Device for inference: cpu, cuda, xpu (Intel Arc), or auto (default: cpu)",
     )
     parser.add_argument(
         "--language",
@@ -122,9 +123,17 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
+    # Strip accidental surrounding quotes (e.g. Windows: --uri 'tcp://...')
+    if args.uri and args.uri[0] in ("'", '"') and args.uri[-1] == args.uri[0]:
+        args.uri = args.uri[1:-1]
+
     if not args.download_dir:
         # Download to first data dir by default
         args.download_dir = args.data_dir[0]
+
+    if args.device == "auto":
+        args.device = get_best_device()
+        _LOGGER.debug("Auto-selected device: %s", args.device)
 
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO, format=args.log_format
